@@ -43,6 +43,55 @@ MPU9250::MPU9250(SPIClass &bus,uint8_t csPin){
 }
 
 /* starts communication with the MPU-9250 */
+int MPU9250::mybegin(){
+  if( _useSPI ) { // using SPI for communication
+    // use low speed SPI for register setting
+    _useSPIHS = false;
+    // setting CS pin to output
+    pinMode(_csPin,OUTPUT);
+    // setting CS pin high
+    digitalWrite(_csPin,HIGH);
+    // begin SPI communication
+    _spi->begin();
+  }
+  while(true)
+  {
+    int res = whoAmI();
+    Serial.printf("whoAmI() %d\r\n", res);
+    if(res == 113 || res == 115)
+    {
+      break;
+    }
+  }
+  // enable accelerometer and gyro
+  if(writeRegister(PWR_MGMNT_2,SEN_ENABLE) < 0){
+    return -6;
+  }
+  // setting accel range to 16G as default
+  if(writeRegister(ACCEL_CONFIG,ACCEL_FS_SEL_16G) < 0){
+    return -7;
+  }
+  _accelScale = G * 16.0f/32767.5f; // setting the accel scale to 16G
+  _accelRange = ACCEL_RANGE_16G;
+  // setting the gyro range to 2000DPS as default
+  if(writeRegister(GYRO_CONFIG,GYRO_FS_SEL_2000DPS_OFF) < 0){
+    return -8;
+  }
+  _gyroScale = 2000.0f/32767.5f * _d2r; // setting the gyro scale to 2000DPS
+  _gyroRange = GYRO_RANGE_2000DPS;
+  // setting bandwidth to 184Hz as default
+  if(writeRegister(ACCEL_CONFIG2,ACCEL_DLPF_OFF) < 0){ 
+    return -9;
+  } 
+  _srd = 0;
+  if (mycalibrateGyro() < 0) {
+    return -20;
+  }
+  // successful init, return 1
+  return 1;
+}
+
+/* starts communication with the MPU-9250 */
 int MPU9250::begin(){
   if( _useSPI ) { // using SPI for communication
     // use low speed SPI for register setting
@@ -114,13 +163,13 @@ int MPU9250::begin(){
   _gyroScale = 2000.0f/32767.5f * _d2r; // setting the gyro scale to 2000DPS
   _gyroRange = GYRO_RANGE_2000DPS;
   // setting bandwidth to 184Hz as default
-  if(writeRegister(ACCEL_CONFIG2,ACCEL_DLPF_OFF) < 0){ 
+  if(writeRegister(ACCEL_CONFIG2,ACCEL_DLPF_184) < 0){ 
     return -9;
   } 
-  if(writeRegister(CONFIG,GYRO_DLPF_OFF) < 0){ // setting gyro bandwidth to 184Hz
+  if(writeRegister(CONFIG,GYRO_DLPF_184) < 0){ // setting gyro bandwidth to 184Hz
     return -10;
   }
-  _bandwidth = DLPF_BANDWIDTH_OFF;
+  _bandwidth = DLPF_BANDWIDTH_184HZ;
   // setting the sample rate divider to 0 as default
   if(writeRegister(SMPDIV,0x00) < 0){ 
     return -11;
@@ -270,15 +319,6 @@ int MPU9250::setDlpfBandwidth(DlpfBandwidth bandwidth) {
   // use low speed SPI for register setting
   _useSPIHS = false;
   switch(bandwidth) {
-     case DLPF_BANDWIDTH_OFF: {
-      if(writeRegister(ACCEL_CONFIG2,ACCEL_DLPF_OFF) < 0){ // setting accel bandwidth to 184Hz
-        return -1;
-      } 
-      if(writeRegister(CONFIG,GYRO_DLPF_OFF) < 0){ // setting gyro bandwidth to 184Hz
-        return -2;
-      }
-      break;
-    }
     case DLPF_BANDWIDTH_184HZ: {
       if(writeRegister(ACCEL_CONFIG2,ACCEL_DLPF_184) < 0){ // setting accel bandwidth to 184Hz
         return -1;
@@ -421,7 +461,7 @@ int MPU9250::enableWakeOnMotion(float womThresh_mg,LpAccelOdr odr) {
   if(writeRegister(PWR_MGMNT_2,DIS_GYRO) < 0){ // disable gyro measurements
     return -2;
   } 
-  if(writeRegister(ACCEL_CONFIG2,ACCEL_DLPF_OFF) < 0){ // setting accel bandwidth to 184Hz
+  if(writeRegister(ACCEL_CONFIG2,ACCEL_DLPF_184) < 0){ // setting accel bandwidth to 184Hz
     return -3;
   } 
   if(writeRegister(INT_ENABLE,INT_WOM_EN) < 0){ // enabling interrupt to wake on motion
@@ -698,6 +738,25 @@ int MPU9250::calibrateGyro() {
   if (setSrd(_srd) < 0) {
     return -6;
   }
+  return 1;
+}
+
+/* estimates the gyro biases */
+int MPU9250::mycalibrateGyro() {
+  // take samples and find bias
+  _gxbD = 0;
+  _gybD = 0;
+  _gzbD = 0;
+  for (size_t i=0; i < _numSamples; i++) {
+    readSensor();
+    _gxbD += (getGyroX_rads() + _gxb)/((double)_numSamples);
+    _gybD += (getGyroY_rads() + _gyb)/((double)_numSamples);
+    _gzbD += (getGyroZ_rads() + _gzb)/((double)_numSamples);
+    delay(20);
+  }
+  _gxb = (float)_gxbD;
+  _gyb = (float)_gybD;
+  _gzb = (float)_gzbD;
   return 1;
 }
 

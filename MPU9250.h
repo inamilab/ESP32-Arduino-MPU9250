@@ -51,7 +51,6 @@ class MPU9250{
     };
     enum DlpfBandwidth
     {
-      DLPF_BANDWIDTH_OFF,
       DLPF_BANDWIDTH_184HZ,
       DLPF_BANDWIDTH_92HZ,
       DLPF_BANDWIDTH_41HZ,
@@ -76,6 +75,7 @@ class MPU9250{
     };
     MPU9250(I2C_t &bus,uint8_t address);
     MPU9250(SPIClass &bus,uint8_t csPin);
+    int mybegin();
     int begin();
     int setAccelRange(AccelRange range);
     int setGyroRange(GyroRange range);
@@ -96,6 +96,7 @@ class MPU9250{
     float getMagZ_uT();
     float getTemperature_C();
     
+    int mycalibrateGyro();
     int calibrateGyro();
     float getGyroBiasX_rads();
     float getGyroBiasY_rads();
@@ -213,8 +214,12 @@ class MPU9250{
     const uint8_t GYRO_FS_SEL_500DPS = 0x08;
     const uint8_t GYRO_FS_SEL_1000DPS = 0x10;
     const uint8_t GYRO_FS_SEL_2000DPS = 0x18;
+    const uint8_t GYRO_FS_SEL_250DPS_OFF = 0x03;
+    const uint8_t GYRO_FS_SEL_500DPS_OFF = 0x0B;
+    const uint8_t GYRO_FS_SEL_1000DPS_OFF = 0x13;
+    const uint8_t GYRO_FS_SEL_2000DPS_OFF = 0x1B;
     const uint8_t ACCEL_CONFIG2 = 0x1D;
-    const uint8_t ACCEL_DLPF_OFF = 0x00;
+    const uint8_t ACCEL_DLPF_OFF = 0x08;
     const uint8_t ACCEL_DLPF_184 = 0x01;
     const uint8_t ACCEL_DLPF_92 = 0x02;
     const uint8_t ACCEL_DLPF_41 = 0x03;
@@ -222,7 +227,6 @@ class MPU9250{
     const uint8_t ACCEL_DLPF_10 = 0x05;
     const uint8_t ACCEL_DLPF_5 = 0x06;
     const uint8_t CONFIG = 0x1A;
-    const uint8_t GYRO_DLPF_OFF = 0x00;
     const uint8_t GYRO_DLPF_184 = 0x01;
     const uint8_t GYRO_DLPF_92 = 0x02;
     const uint8_t GYRO_DLPF_41 = 0x03;
